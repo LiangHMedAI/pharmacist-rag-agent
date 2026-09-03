@@ -1,0 +1,15 @@
+[
+  {
+    "query": "What contraindications are listed for aspirin?",
+    "expected_source_contains": "aspirin"
+  },
+  {
+    "query": "What warnings are listed for ibuprofen?",
+    "expected_source_contains": "ibuprofen"
+  },
+  {
+    "query": "What dosage information is listed for clopidogrel?",
+    "expected_source_contains": "clopidogrel"
+  }
+]
+

@@ -1,0 +1,11 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+knowledge_base/
+vector_db/
+*.faiss
+*.pkl
+
