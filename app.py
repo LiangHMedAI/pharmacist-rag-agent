@@ -171,7 +171,7 @@ def t(key):
 # ============================================================
 # 🎨 薄荷绿柔和医疗商务风 CSS
 # ============================================================
-st.markdown("""
+st.html("""
 <style>
     .stApp { background-color: #faf9f6 !important; color: #1f2937 !important; }
     header {visibility: hidden;}
@@ -331,7 +331,7 @@ st.markdown("""
         font-size: 12px !important; color: #6b7280 !important; font-weight: 500 !important;
     }
 </style>
-""", unsafe_allow_html=True)
+""")
 
 # ============================================================
 # --- 登录页面 ---
