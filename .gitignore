@@ -4,8 +4,17 @@ venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
-knowledge_base/
 vector_db/
 *.faiss
 *.pkl
 
+# Knowledge base: keep git able to descend into the folder ...
+!knowledge_base/
+# ... but ignore (almost) everything inside it by default ...
+knowledge_base/*
+# ... and re-allow only the confirmed public demo inserts below, so a fresh
+# clone / Render instance gets a non-empty KB while future files stay ignored.
+!knowledge_base/Aspirin_Package_Insert.pdf
+!knowledge_base/Clopidogrel_Tablets_Insert.pdf
+!knowledge_base/EguiYangxue_Package_Insert.pdf
+!knowledge_base/Ibuprofen_Package_Insert.pdf
