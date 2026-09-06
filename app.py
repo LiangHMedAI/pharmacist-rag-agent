@@ -174,7 +174,21 @@ def t(key):
 st.html("""
 <style>
     .stApp { background-color: #faf9f6 !important; color: #1f2937 !important; }
-    header {visibility: hidden;}
+
+    /* Keep the sidebar toggle / collapse & reopen arrows always reachable.
+       Do NOT hide these built-in controls; otherwise the user can lose the
+       ability to reopen a collapsed sidebar. */
+    [data-testid="collapsedControl"],
+    [data-testid="stSidebarCollapsedControl"] {
+        z-index: 1000 !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+    }
+
+    /* Keep the app header element in normal flow so the top chrome and the
+       sidebar controls are not clipped; hide only the extra page chrome. */
+    #MainMenu { visibility: hidden; }
+    footer { visibility: hidden; }
 
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, #eef1f5 0%, #edf0f5 100%) !important;
@@ -222,7 +236,7 @@ st.html("""
 
     .top-nav {
         display: flex; justify-content: space-between; align-items: center;
-        padding: 16px 28px; margin-top: -60px; margin-bottom: 22px;
+        padding: 16px 28px; margin-top: 0; margin-bottom: 22px;
         background: #f8f9fb; border-bottom: 1px solid #e8ecf1;
         border-radius: 0 0 14px 14px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.03);
@@ -300,9 +314,19 @@ st.html("""
     }
 
     .block-container {
-        padding-top: 2rem !important;
-        padding-left: 2rem !important;
-        padding-right: 2rem !important;
+        /* Leave room below the (now visible) Streamlit header so the top-nav
+           title is never clipped on desktop or mobile. */
+        padding-top: 4rem !important;
+        padding-left: 1.5rem !important;
+        padding-right: 1.5rem !important;
+    }
+    @media (max-width: 768px) {
+        .block-container {
+            padding-top: 4.5rem !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+        }
+        .top-nav { padding-left: 14px; padding-right: 14px; }
     }
 
     [data-testid="stFileUploader"] section {
