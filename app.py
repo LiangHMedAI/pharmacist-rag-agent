@@ -175,15 +175,52 @@ st.html("""
 <style>
     .stApp { background-color: #faf9f6 !important; color: #1f2937 !important; }
 
-    /* Keep the sidebar toggle / collapse & reopen arrows always reachable.
-       Do NOT hide these built-in controls; otherwise the user can lose the
-       ability to reopen a collapsed sidebar. */
+    /* Precise show/reopen control for the COLLAPSED SIDEBAR only.
+       Streamlit exposes this under a few native test-ids depending on version.
+       IMPORTANT: we must NOT match the "three-dots" main menu
+       ([data-testid="stMainMenu"]) or generic header buttons, so we do not
+       include header/button selectors here. The real sidebar-reopen control
+       is one of these, and we leave stMainMenu untouched. */
+    [data-testid="stSidebarCollapsedControl"],
     [data-testid="collapsedControl"],
-    [data-testid="stSidebarCollapsedControl"] {
-        z-index: 1000 !important;
+    [data-testid="stSidebarCollapseButton"] {
+        position: fixed !important;
+        left: 12px !important;
+        top: 12px !important;
+        z-index: 999999 !important;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
         visibility: visible !important;
         opacity: 1 !important;
+        pointer-events: auto !important;
+        width: 34px;
+        height: 34px;
+        background: #ffffff !important;
+        color: #0d9488 !important;
+        fill: #0d9488 !important;
+        border: 1px solid #d5dbe4 !important;
+        border-radius: 8px !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18) !important;
     }
+    [data-testid="stSidebarCollapsedControl"]:hover,
+    [data-testid="collapsedControl"]:hover,
+    [data-testid="stSidebarCollapseButton"]:hover {
+        background: #e0f2ef !important;
+        border-color: #0d9488 !important;
+    }
+    /* Colour the icon inside the collapsed-sidebar control only, never the
+       main-menu dots or generic header buttons. */
+    [data-testid="stSidebarCollapsedControl"] svg,
+    [data-testid="collapsedControl"] svg,
+    [data-testid="stSidebarCollapseButton"] svg {
+        fill: #0d9488 !important;
+        color: #0d9488 !important;
+    }
+
+    /* Never touch Streamlit's main ("three-dots") menu button. */
+    [data-testid="stMainMenu"],
+    [data-testid="stMainMenu"] svg {}
 
     /* Keep the app header element in normal flow so the top chrome and the
        sidebar controls are not clipped; hide only the extra page chrome. */
