@@ -208,7 +208,87 @@ def _load_documents():
     return documents
 
 
+# Drug-alias -> source filename map. This is identity metadata only; it never
+# injects medical claims, it just steers retrieval toward the right package
+# insert when a query plainly names a drug. Lowercase aliases are matched
+# against the lowercased query.
+DRUG_SOURCE_ALIASES = [
+    (("aspirin", "阿司匹林", "acetylsalicylic"), "Aspirin_Package_Insert.pdf"),
+    (("ibuprofen", "布洛芬"), "Ibuprofen_Package_Insert.pdf"),
+    (("clopidogrel", "氯吡格雷"), "Clopidogrel_Tablets_Insert.pdf"),
+    (("eguiyangxue", "阿归养血", "阿归养血颗粒"), "EguiYangxue_Package_Insert.pdf"),
+]
+
+# Cosine-distance bonus given to chunks that belong to a source file whose name
+# matches a drug named in the query (~0.5 distance means a strong preference,
+# but does not by itself let a zero-overlap chunk pass the fail-closed gate).
+_MATCHED_SOURCE_BONUS = 0.6
+
+
+def _named_source_filenames(query):
+    """Return {source_filename} whose drug alias appears in the (lowercased) query."""
+    q = (query or "").lower()
+    matched = set()
+    for aliases, filename in DRUG_SOURCE_ALIASES:
+        if any(a.lower() in q for a in aliases):
+            matched.add(filename)
+    return matched
+
+
+def _rank_documents(qtokens, docs, named_sources, k, max_distance):
+    """Rank document chunks; prefer chunks from a source whose filename matches
+    a drug named in the query, but stay fail-closed (return no result when a
+    chunk shares no token with the query). Returns list[SearchResult]."""
+    scored = []
+    for doc in docs:
+        dtokens = _tokens(doc.page_content)
+        sim = _cosine(qtokens, dtokens)
+        dist = 1.0 - sim  # 1.0 == no lexical overlap (fail-closed below)
+        source = (doc.metadata.get("source") or "") if doc.metadata else ""
+        source_name_only = os.path.basename(str(source))
+        rank_dist = dist
+        if named_sources and source_name_only in named_sources:
+            rank_dist = max(0.0, dist - _MATCHED_SOURCE_BONUS)
+        scored.append((dist, rank_dist, doc))
+
+    # Sort by the source-prioritised distance, then raw distance as tiebreak.
+    scored.sort(key=lambda item: (item[1], item[0]))
+    results = []
+    for dist, _rank, doc in scored[:k]:
+        # Fail closed: no lexical overlap (dist == 1.0) is never evidence; the
+        # caller max_distance ceiling is honoured as a further gate.
+        if dist < 1.0 and dist <= max_distance:
+            results.append(SearchResult(document=doc, distance=float(dist)))
+    return results
+
+
+def _literal_coverage(qtokens, text):
+    """How many distinct query tokens appear (as substrings, lowercased) in text.
+
+    Substring matching is tolerant of PDF text where spaces/segmentation are
+    lost (e.g. "IbuprofenTablet" still contains "ibuprofen") and lets a latin
+    drug token confirm a chunk even inside a Chinese-language question.
+    """
+    t = (text or "").lower()
+    if not t:
+        return 0
+    seen = set()
+    for tok in qtokens:
+        if tok and tok in t:
+            seen.add(tok)
+    return len(seen)
+
+
 def search_knowledge_base(query, k=RAG_TOP_K, max_distance=RAG_MAX_DISTANCE):
+    """Return evidence chunks for a user query.
+
+    When the query names a known drug that exists in the KB, retrieve only from
+    that drug's own package insert and rank chunks by literal (substring) query
+    coverage. The confirm path deliberately does NOT require Chinese question
+    words to overlap English insert text: once a drug is confirmed present and
+    the KB holds it, we return its best section instead of falsely reporting
+    "no evidence". Free-form queries (no known drug) use fail-closed cosine.
+    """
     q = (query or "").strip()
     if not q:
         return []
@@ -220,23 +300,34 @@ def search_knowledge_base(query, k=RAG_TOP_K, max_distance=RAG_MAX_DISTANCE):
     if not docs:
         return []
 
-    scored = []
-    for doc in docs:
-        dtokens = _tokens(doc.page_content)
-        sim = _cosine(qtokens, dtokens)
-        dist = 1.0 - sim  # cosine distance in [0, 1]; 1.0 == no lexical overlap
-        scored.append((dist, doc))
+    return _search_docs_from_text(q, qtokens, docs, k, max_distance)
 
-    scored.sort(key=lambda pair: pair[0])
-    results = []
-    for dist, doc in scored[:k]:
-        # Fail closed: a hit with dist == 1.0 shares no token with the query and
-        # must not be presented as evidence. Each returned result must also be
-        # inside the caller-supplied max_distance ceiling (default keeps
-        # compatibility; cosine distance is bounded above at 1.0 anyway).
-        if dist < 1.0 and dist <= max_distance:
-            results.append(SearchResult(document=doc, distance=float(dist)))
-    return results
+
+def _search_docs_from_text(q, qtokens, docs, k, max_distance):
+    """Rank `docs` for a query (exposed as a pure function for tests)."""
+    named_sources = _named_source_filenames(q)
+    available = {os.path.basename(str(d.metadata.get("source") or "")) for d in docs}
+    present = sorted(s for s in named_sources if s in available)
+
+    if present:
+        scope = [d for d in docs
+                 if os.path.basename(str(d.metadata.get("source") or "")) in present]
+        covered = sorted(
+            ((_literal_coverage(qtokens, d.page_content), d) for d in scope),
+            key=lambda pair: pair[0], reverse=True,
+        )
+        # Evidence = genuinely overlapping chunks; if none, still surface the
+        # matched PDF's top page-ordered section (drug confirmed present).
+        picks = [c for c in covered if c[0] > 0] or covered
+        maxcov = picks[0][0] if picks else 0
+        out = []
+        for cov, doc in picks[:k]:
+            dist = (1.0 - cov / maxcov) if maxcov else 0.5
+            out.append(SearchResult(document=doc, distance=float(dist)))
+        return out
+
+    # Free-form: no known drug -> plain fail-closed cosine ranking.
+    return _rank_documents(qtokens, docs, set(), k, max_distance)
 
 
 def extract_pdf_text(pdf_bytes):

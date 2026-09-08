@@ -502,6 +502,10 @@ else:
                 "", placeholder=t('smart_query_placeholder'), height=90,
                 label_visibility="collapsed", key="smart_query")
             if st.button(t('execute_query'), use_container_width=True, key="btn_query"):
+                # ---- Start of a new AI search: drop any previous result ----
+                for _k in ('res', 'docs', 'search_results'):
+                    st.session_state.pop(_k, None)
+                st.session_state.last_api_latency_ms = None
                 if not query.strip():
                     st.warning(t('empty_warning'))
                 else:
